@@ -84,5 +84,41 @@ Moto tests do not validate real AWS IAM enforcement.
 - G01.2: S3 object processing tests — complete
 - G01.3: IAM policy configuration — committed
 - G01.4: Extended test suite — 12 tests passing
-- G01.5: Documentation and final verification — in progress
-- G02: CloudFormation, ECS, and ALB — planned
+- G01.5: Documentation and final verification — complete
+- G02: CloudFormation, ECS, and ALB — locally validated
+
+## G02 — ECS Fargate and Application Load Balancer
+
+A Python FastAPI application has been containerized with Docker.
+
+Implemented:
+- FastAPI root and health endpoints
+- Non-root Docker runtime (UID 10001)
+- Docker HEALTHCHECK
+- ECS Fargate cluster, task definition, and service
+- ECS task execution IAM role
+- CloudWatch log configuration
+- Application Load Balancer and HTTP listener
+- IP-based target group with /health checks
+- Security groups restricting access to ECS tasks
+- Deployment circuit breaker with rollback configuration
+
+## G03 — Local Engineering Verification
+
+Verified:
+- SAM template validation passed
+- ECS/ALB CloudFormation lint passed
+- Lambda build succeeded
+- 12 automated tests passed
+- Docker health check reported healthy
+- Local API health endpoint returned HTTP 200
+- Git working tree clean at verification
+
+AWS deployment limitations:
+- No ECS or ALB deployment has been performed
+- No image has been published to an AWS-accessible registry
+- Real AWS IAM enforcement has not been tested
+- Network dependencies require deployment-specific configuration
+- AWS costs are not guaranteed to be zero if deployed
+
+The infrastructure is locally validated, not production-certified.
