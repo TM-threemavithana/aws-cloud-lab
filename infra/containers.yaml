@@ -1,10 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Cloud Lab - ECS Fargate Application
+Description: AWS Cloud Engineering Lab - ECS Fargate with ALB
 
 Parameters:
   ContainerImage:
     Type: String
-    Description: Fully qualified container registry image URI
+    MinLength: 1
+    Description: Image URI accessible to ECS, such as an ECR image
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+  AlbSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Two public subnets in different availability zones
+
+  TaskSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets with image-pull and logging connectivity
+
+  AssignPublicIp:
+    Type: String
+    Default: DISABLED
+    AllowedValues:
+      - ENABLED
+      - DISABLED
 
 Resources:
   ECSCluster:
@@ -58,9 +77,93 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: api
 
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP access to the ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow API traffic from ALB only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  ApiLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      Subnets: !Ref AlbSubnets
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+
+  ApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Port: 8000
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      Matcher:
+        HttpCode: '200'
+
+  ApiListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApiLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApiTargetGroup
+
+  ApiService:
+    Type: AWS::ECS::Service
+    DependsOn: ApiListener
+    Properties:
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref ApiTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: !Ref AssignPublicIp
+          SecurityGroups:
+            - !Ref TaskSecurityGroup
+          Subnets: !Ref TaskSubnets
+      LoadBalancers:
+        - TargetGroupArn: !Ref ApiTargetGroup
+          ContainerName: api
+          ContainerPort: 8000
+
 Outputs:
   ClusterName:
     Value: !Ref ECSCluster
 
   TaskDefinitionArn:
     Value: !Ref ApiTaskDefinition
+
+  ServiceName:
+    Value: !GetAtt ApiService.Name
+
+  LoadBalancerDNS:
+    Value: !GetAtt ApiLoadBalancer.DNSName
