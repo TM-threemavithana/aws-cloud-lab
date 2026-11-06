@@ -1,0 +1,22 @@
+# Python environments
+.venv/
+venv/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# AWS SAM generated files
+.aws-sam/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# IDE files
+.vscode/
+.idea/
